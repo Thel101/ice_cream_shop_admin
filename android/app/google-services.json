@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "80640900084",
+    "project_id": "ice-cream-shop-5e9da",
+    "storage_bucket": "ice-cream-shop-5e9da.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:80640900084:android:d9c190960015b6052297a1",
+        "android_client_info": {
+          "package_name": "com.example.ice_cream_shop"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDF7iSw_E5899VOrzgMrhqYUbMignyUbCs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:80640900084:android:97cf103b036f201b2297a1",
+        "android_client_info": {
+          "package_name": "com.example.ice_cream_shop_admin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDF7iSw_E5899VOrzgMrhqYUbMignyUbCs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
