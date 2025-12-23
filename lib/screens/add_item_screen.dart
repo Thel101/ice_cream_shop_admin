@@ -20,6 +20,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
   final _toppingsController = TextEditingController();
 
   File? _selectedImage;
+  final Set<String> _selectedToppings = {};
   bool _isLoading = false;
 
   final Color _primaryColor = const Color(0xFFF04888);
@@ -38,25 +39,22 @@ class _AddItemScreenState extends State<AddItemScreen> {
     }
   }
 
-  Future<String?> _uploadImage(File image) async {
-    try {
-      final String fileName = DateTime.now().millisecondsSinceEpoch.toString();
-      final Reference storageRef = FirebaseStorage. .instance.ref().child('menu_images/$fileName.jpg');
-      final UploadTask uploadTask = storageRef.putFile(image);
-      final TaskSnapshot snapshot = await uploadTask;
-      final String downloadUrl = await snapshot.ref.getDownloadURL();
-      return downloadUrl;
-    } catch (e) {
-      debugPrint('Error uploading image: $e');
-      return null;
-    }
+  Future<String> _uploadImage(File image) async {
+    final String fileName = DateTime.now().millisecondsSinceEpoch.toString();
+    final Reference storageRef = FirebaseStorage.instance.ref().child(
+      'menu_images/$fileName.jpg',
+    );
+    final UploadTask uploadTask = storageRef.putFile(image);
+    final TaskSnapshot snapshot = await uploadTask;
+    final String downloadUrl = await snapshot.ref.getDownloadURL();
+    return downloadUrl;
   }
 
   Future<void> _saveItem() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedImage == null) {
         if (mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Please select an image')),
           );
         }
@@ -69,20 +67,26 @@ class _AddItemScreenState extends State<AddItemScreen> {
 
       try {
         // 1. Upload Image
-        final String? imageUrl = await _uploadImage(_selectedImage!);
-        if (imageUrl == null) {
-          throw Exception('Image upload failed');
-        }
+        final String imageUrl = await _uploadImage(_selectedImage!);
 
         // 2. Prepare Data
         final double price = double.parse(_priceController.text);
         final String name = _nameController.text.trim();
         final String description = _descriptionController.text.trim();
-        final String toppings = _toppingsController.text.trim();
-        List<String> toppingsList = [];
-        if (toppings.isNotEmpty) {
-           toppingsList = toppings.split(',').map((e) => e.trim()).toList();
+
+        // Merge checkboxes and custom input
+        final String customToppings = _toppingsController.text.trim();
+        List<String> toppingsList = _selectedToppings.toList();
+
+        if (customToppings.isNotEmpty) {
+          final customList = customToppings
+              .split(',')
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty);
+          toppingsList.addAll(customList);
         }
+        // Remove duplicates if any
+        toppingsList = toppingsList.toSet().toList();
 
         // 3. Save to Firestore
         await FirebaseFirestore.instance.collection('menu_items').add({
@@ -106,13 +110,14 @@ class _AddItemScreenState extends State<AddItemScreen> {
           _toppingsController.clear();
           setState(() {
             _selectedImage = null;
+            _selectedToppings.clear();
           });
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error adding item: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error adding item: $e')));
         }
       } finally {
         if (mounted) {
@@ -131,7 +136,10 @@ class _AddItemScreenState extends State<AddItemScreen> {
       appBar: AppBar(
         title: Text(
           'Add New Item',
-          style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600),
+          style: GoogleFonts.poppins(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         backgroundColor: _primaryColor,
         elevation: 0,
@@ -155,9 +163,13 @@ class _AddItemScreenState extends State<AddItemScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: _selectedImage == null ? Colors.grey.shade400 : _primaryColor,
+                        color: _selectedImage == null
+                            ? Colors.grey.shade400
+                            : _primaryColor,
                         width: 2,
-                        style: _selectedImage == null ? BorderStyle.solid : BorderStyle.solid, 
+                        style: _selectedImage == null
+                            ? BorderStyle.solid
+                            : BorderStyle.solid,
                       ),
                       image: _selectedImage != null
                           ? DecorationImage(
@@ -166,7 +178,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
                             )
                           : null,
                       boxShadow: [
-                         BoxShadow(
+                        BoxShadow(
                           color: Colors.grey.withAlpha(25), // ~0.1 opacity
                           blurRadius: 10,
                           offset: const Offset(0, 5),
@@ -200,12 +212,15 @@ class _AddItemScreenState extends State<AddItemScreen> {
                                 child: CircleAvatar(
                                   backgroundColor: Colors.white,
                                   child: IconButton(
-                                    icon: const Icon(Icons.edit, color: Colors.black),
+                                    icon: const Icon(
+                                      Icons.edit,
+                                      color: Colors.black,
+                                    ),
                                     onPressed: _pickImage,
                                     tooltip: 'Change Image',
                                   ),
                                 ),
-                              )
+                              ),
                             ],
                           ),
                   ),
@@ -230,7 +245,9 @@ class _AddItemScreenState extends State<AddItemScreen> {
                 _buildLabel('Price (\$)'),
                 TextFormField(
                   controller: _priceController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: _inputDecoration('e.g., 4.50'),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -259,14 +276,77 @@ class _AddItemScreenState extends State<AddItemScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // 5. Toppings (Optional)
-                _buildLabel('Toppings (Optional)'),
+                // 5. Select Toppings
+                _buildLabel('Select Toppings'),
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('toppings')
+                      .orderBy('name')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                        child: Text('Loading toppings...'),
+                      );
+                    }
+                    final docs = snapshot.data!.docs;
+                    if (docs.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Text(
+                          'No saved toppings found.',
+                          style: GoogleFonts.poppins(color: Colors.grey),
+                        ),
+                      );
+                    }
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        children: docs.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final String toppingName = data['name'] ?? '';
+                          return CheckboxListTile(
+                            title: Text(
+                              toppingName,
+                              style: GoogleFonts.poppins(),
+                            ),
+                            value: _selectedToppings.contains(toppingName),
+                            activeColor: _primaryColor,
+                            onChanged: (bool? value) {
+                              setState(() {
+                                if (value == true) {
+                                  _selectedToppings.add(toppingName);
+                                } else {
+                                  _selectedToppings.remove(toppingName);
+                                }
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    );
+                  },
+                ),
+
+                // 6. Custom Toppings
+                _buildLabel('Custom Toppings (Optional)'),
                 TextFormField(
                   controller: _toppingsController,
-                  decoration: _inputDecoration('e.g., Sprinkles, Fudge, Nuts').copyWith(
-                    helperText: 'Separate multiple toppings with commas',
-                    helperStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
-                  ),
+                  decoration: _inputDecoration('e.g., Gold Flakes, Secrets')
+                      .copyWith(
+                        helperText: 'Add extra toppings separated by commas',
+                        helperStyle: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
                 ),
                 const SizedBox(height: 32),
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'add_item_screen.dart';
 import 'login_screen.dart';
 import 'add_topping_screen.dart';
@@ -9,40 +10,6 @@ class MenuListScreen extends StatelessWidget {
 
   final Color _primaryColor = const Color(0xFFF04888);
   final Color _backgroundColor = const Color(0xFFF8F9FA);
-
-  // Dummy Data
-  final List<Map<String, dynamic>> _dummyMenu = const [
-    {
-      'name': 'Midnight Chocolate',
-      'price': 4.50,
-      'description': 'Deep, dark Dutch cocoa with fudge chunks.',
-      'color': Colors.brown,
-    },
-    {
-      'name': 'Vanilla Bean Dream',
-      'price': 4.00,
-      'description': 'Classic vanilla made with real Madagascar beans.',
-      'color': Colors.amber,
-    },
-    {
-      'name': 'Strawberry Basil',
-      'price': 4.75,
-      'description': 'Fresh strawberries blended with a hint of basil.',
-      'color': Colors.pinkAccent,
-    },
-    {
-      'name': 'Mango Chile Popsicle',
-      'price': 3.50,
-      'description': 'Sweet ripe mango with a spicy kick of Tajín.',
-      'color': Colors.orange,
-    },
-    {
-      'name': 'Blue Raspberry Ice',
-      'price': 3.00,
-      'description': 'Nostalgic blue raspberry flavor, strictly for fun.',
-      'color': Colors.blue,
-    },
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +34,9 @@ class MenuListScreen extends StatelessWidget {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const AddToppingScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const AddToppingScreen(),
+                ),
               );
             },
           ),
@@ -82,102 +51,165 @@ class MenuListScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _dummyMenu.length,
-        itemBuilder: (context, index) {
-          final item = _dummyMenu[index];
-          return Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withAlpha(20),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () {
-                  // Navigate to details or edit in future
-                },
-                child: Row(
-                  children: [
-                    // Image Placeholder
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        color: (item['color'] as Color).withAlpha(50),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(16),
-                          bottomLeft: Radius.circular(16),
-                        ),
-                      ),
-                      child: Icon(
-                        Icons.icecream,
-                        color: item['color'] as Color,
-                        size: 40,
-                      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('menu_items')
+            .orderBy('created_at', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Error loading menu: ${snapshot.error}',
+                style: GoogleFonts.poppins(color: Colors.red),
+              ),
+            );
+          }
+
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(
+              child: CircularProgressIndicator(color: _primaryColor),
+            );
+          }
+
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.icecream_outlined,
+                    size: 64,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No menu items found.\nAdd some tasty treats!',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      color: Colors.grey[600],
                     ),
-                    // Content
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item['name'] as String,
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              item['description'] as String,
-                              style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                color: Colors.grey[600],
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '\$${(item['price'] as double).toStringAsFixed(2)}',
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 15,
-                                color: _primaryColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    // Arrow
-                    Padding(
-                      padding: const EdgeInsets.only(right: 16.0),
-                      child: Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        size: 16,
-                        color: Colors.grey[400],
-                      ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: snapshot.data!.docs.length,
+            itemBuilder: (context, index) {
+              final doc = snapshot.data!.docs[index];
+              final data = doc.data() as Map<String, dynamic>;
+
+              final String name = data['name'] ?? 'Unknown';
+              final String description = data['description'] ?? '';
+              final double price = (data['price'] as num?)?.toDouble() ?? 0.0;
+              final String imageUrl = data['image_url'] ?? '';
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withAlpha(20),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-              ),
-            ),
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () {
+                      // Navigate to details or edit in future
+                    },
+                    child: Row(
+                      children: [
+                        // Image
+                        Container(
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(16),
+                              bottomLeft: Radius.circular(16),
+                            ),
+                            image: imageUrl.isNotEmpty
+                                ? DecorationImage(
+                                    image: NetworkImage(imageUrl),
+                                    fit: BoxFit.cover,
+                                  )
+                                : null,
+                          ),
+                          child: imageUrl.isEmpty
+                              ? Icon(
+                                  Icons.icecream,
+                                  color: _primaryColor.withAlpha(100),
+                                  size: 40,
+                                )
+                              : null,
+                        ),
+                        // Content
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                if (description.isNotEmpty)
+                                  Text(
+                                    description,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      color: Colors.grey[600],
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  '\$${price.toStringAsFixed(2)}',
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                    color: _primaryColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // Arrow
+                        Padding(
+                          padding: const EdgeInsets.only(right: 16.0),
+                          child: Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 16,
+                            color: Colors.grey[400],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
           );
         },
       ),

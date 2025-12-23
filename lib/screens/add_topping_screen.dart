@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AddToppingScreen extends StatefulWidget {
   const AddToppingScreen({super.key});
@@ -17,18 +18,19 @@ class _AddToppingScreenState extends State<AddToppingScreen> {
   final Color _buttonColor = const Color(0xFF1A2130);
   final Color _backgroundColor = const Color(0xFFF8F9FA);
 
-  void _saveTopping() {
+  Future<void> _saveTopping() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true;
       });
 
-      // Simulate a network delay
-      Future.delayed(const Duration(seconds: 1), () {
+      try {
+        await FirebaseFirestore.instance.collection('toppings').add({
+          'name': _toppingController.text.trim(),
+          'created_at': FieldValue.serverTimestamp(),
+        });
+
         if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Topping "${_toppingController.text}" added!'),
@@ -37,7 +39,22 @@ class _AddToppingScreenState extends State<AddToppingScreen> {
           );
           _toppingController.clear();
         }
-      });
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error adding topping: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
@@ -47,8 +64,11 @@ class _AddToppingScreenState extends State<AddToppingScreen> {
       backgroundColor: _backgroundColor,
       appBar: AppBar(
         title: Text(
-          'Add New Topping',
-          style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600),
+          'Manage Toppings',
+          style: GoogleFonts.poppins(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         backgroundColor: _primaryColor,
         elevation: 0,
@@ -57,86 +77,158 @@ class _AddToppingScreenState extends State<AddToppingScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Create a new topping option for your menu.',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Topping Name Field
-              TextFormField(
-                controller: _toppingController,
-                decoration: InputDecoration(
-                  labelText: 'Topping Name',
-                  hintText: 'e.g., Rainbow Sprinkles',
-                  hintStyle: GoogleFonts.poppins(color: Colors.grey.shade400),
-                  prefixIcon: Icon(Icons.grain, color: _primaryColor),
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade200),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: _primaryColor, width: 2),
-                  ),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a topping name';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 32),
-
-              // Save Button
-              SizedBox(
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _saveTopping,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _buttonColor,
-                    foregroundColor: Colors.white,
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            // Input Form
+            Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Create a new topping option.',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.grey[600],
                     ),
                   ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _toppingController,
+                          decoration: InputDecoration(
+                            labelText: 'Topping Name',
+                            hintText: 'e.g., Sprinkles',
+                            hintStyle: GoogleFonts.poppins(
+                              color: Colors.grey.shade400,
+                            ),
+                            prefixIcon: Icon(Icons.grain, color: _primaryColor),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 16,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
                           ),
-                        )
-                      : Text(
-                          'Add Topping',
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Enter name';
+                            }
+                            return null;
+                          },
                         ),
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _saveTopping,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _buttonColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.add),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            // Header
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Existing Toppings',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 12),
+
+            // List
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('toppings')
+                    .orderBy('created_at', descending: true)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(
+                      child: CircularProgressIndicator(color: _primaryColor),
+                    );
+                  }
+
+                  final docs = snapshot.data?.docs ?? [];
+                  if (docs.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'No toppings found.',
+                        style: GoogleFonts.poppins(color: Colors.grey),
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    itemCount: docs.length,
+                    itemBuilder: (context, index) {
+                      final data = docs[index].data() as Map<String, dynamic>;
+                      return Card(
+                        elevation: 0,
+                        color: Colors.white,
+                        margin: const EdgeInsets.only(bottom: 8),
+                        shape: RoundedRectangleBorder(
+                          side: BorderSide(color: Colors.grey.shade200),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: ListTile(
+                          dense: true,
+                          leading: Icon(
+                            Icons.check_circle_outline,
+                            color: _primaryColor,
+                          ),
+                          title: Text(
+                            data['name'] ?? '',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w500,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
