@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'add_item_screen.dart';
 import 'login_screen.dart';
 import 'add_topping_screen.dart';
+import 'customize_ice_cream_screen.dart';
 
 class MenuListScreen extends StatelessWidget {
   const MenuListScreen({super.key});
@@ -28,6 +29,18 @@ class MenuListScreen extends StatelessWidget {
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_fix_high),
+            tooltip: 'Customize',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CustomizeIceCreamScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.grain),
             tooltip: 'Add Topping',
